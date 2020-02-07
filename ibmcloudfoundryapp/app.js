@@ -28,6 +28,8 @@ const cfenv = require('cfenv');
 const multer = require('multer');
 const PersonalityInsightsV3 = require('ibm-watson/personality-insights/v3');
 const {IamAuthenticator} = require('ibm-watson/auth');
+const {PythonShell} = require('python-shell');
+const {execSync} = require('child_process');
 
 const app = express();
 
@@ -46,11 +48,19 @@ let hasDB = false;
 let watsonConnect = false;
 let watsonapi;
 const watsonPiEndpoint = 'https://gateway.watsonplatform.net/personality-insights/api/';
+let pythonOptions = {};
 
-// development only
-// if ('development' === app.get('env')) {
-  // app.use(express.errorHandler());
-// }
+try {
+    const stdout = execSync(process.platform === "win32" ? 'where python' : 'which python').toString();
+    pythonOptions = {
+        mode: 'text',
+        pythonPath: stdout.trim(),
+        pythonOptions: ['-u'],
+        args: []
+    };
+} catch (err) {
+    throw new Error("Error finding python directory: " + err.message);
+}
 
 if (process.env.VCAP_SERVICES) {
     const env = JSON.parse(process.env.VCAP_SERVICES);
@@ -96,7 +106,9 @@ app.get('/', routes.default);
 app.get('/lab1q5', routes.listSysTables(ibmdb, connString));
 app.get('/lab1q6', routes.watsonForm);
 app.get('/lab1q7', routes.listTestTable(ibmdb, connString));
+app.get('/lab1q8', routes.pythonTest(PythonShell, pythonOptions));
 app.post('/lab1q6', uploading.single('file'), routes.watsonResponse(watsonapi));
+
 app.set('json spaces', 4);
 
 if (app.get('env') === 'development') {

@@ -71,3 +71,16 @@ module.exports.listTestTable = (ibmdb, connString) => (req, res) => ibmdb.open(c
 		});
 	}
 });
+
+module.exports.pythonTest = (PythonShell, pythonOptions) => (req, res) => {
+	console.log(pythonOptions);
+	PythonShell.runString('x=1+1;print(x);print("hello world")', pythonOptions, (err, results) => {
+		if (err) {
+			console.error(err.message);
+			res.status(500).render('output', {data: "Failed to run python script"});
+		} else {
+			console.log(results);
+			res.render('output', {data: results.join('\n')});
+		}
+	})
+};
