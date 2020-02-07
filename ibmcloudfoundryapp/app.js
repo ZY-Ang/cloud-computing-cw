@@ -112,6 +112,7 @@ app.get('/lab1q5', routes.listSysTables(ibmdb, connString));
 app.get('/lab1q6', routes.watsonForm);
 app.get('/lab1q7', routes.listTestTable(ibmdb, connString));
 app.get('/lab1q8', routes.testDbChart(PythonShell, {...pythonOptions, scriptPath: path.join(__dirname, "/pythonScripts")}));
+app.get('/lab1q9', routes.historyGrade9(ibmdb, connString));
 app.post('/lab1q6', uploading.single('file'), routes.watsonResponse(watsonapi));
 
 app.set('json spaces', 4);

@@ -83,6 +83,33 @@ module.exports.testDbChart = (PythonShell, pythonOptions) => (req, res) => {
 	});
 };
 
+module.exports.historyGrade9 = (ibmdb, connString) => (req, res) => ibmdb.open(connString, (err, conn) => {
+	if (err) {
+		res.status(500).render('output', {data: "Error occurred: " + err.message});
+	} else {
+		conn.query('SELECT COUNT(*) AS COUNT FROM HJS20180.TESTDB WHERE ("Module1"=\'History\' OR "Module2"=\'History\' OR "Module3"=\'History\') AND ("Class"=9)', (err, tables, moreResultSets) => {
+			if (!err) {
+				res.render('tablelist', {
+					"tablelist" : tables,
+					"tableName" : "The number of students in grade (class) 9 studying history is",
+					"message": "Q9) Simple SQL Query"
+				});
+
+			} else {
+				res.status(500).render('output', {data: "Error occurred: " + err.message});
+			}
+
+			/*
+                Close the connection to the database
+                param 1: The callback function to execute on completion of close function.
+            */
+			conn.close(() => {
+				console.log("IBM DB Connection Closed");
+			});
+		});
+	}
+});
+
 module.exports.pythonTest = (PythonShell, pythonOptions) => (req, res) => {
 	console.log(pythonOptions);
 	PythonShell.runString('x=1+1;print(x);print("hello world")', pythonOptions, (err, results) => {
