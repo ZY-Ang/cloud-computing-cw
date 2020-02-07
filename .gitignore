@@ -1,6 +1,6 @@
 
-# Created by https://www.gitignore.io/api/node,macos,python,pycharm,windows,webstorm
-# Edit at https://www.gitignore.io/?templates=node,macos,python,pycharm,windows,webstorm
+# Created by https://www.gitignore.io/api/node,macos,python,pycharm,windows,webstorm,virtualenv
+# Edit at https://www.gitignore.io/?templates=node,macos,python,pycharm,windows,webstorm,virtualenv
 
 ### macOS ###
 # General
@@ -327,6 +327,18 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+### VirtualEnv ###
+# Virtualenv
+# http://iamzed.com/2009/05/07/a-primer-on-virtualenv/
+pyvenv.cfg
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-selfcheck.json
+
 ### WebStorm ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and WebStorm
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
@@ -409,4 +421,4 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
-# End of https://www.gitignore.io/api/node,macos,python,pycharm,windows,webstorm
+# End of https://www.gitignore.io/api/node,macos,python,pycharm,windows,webstorm,virtualenv
