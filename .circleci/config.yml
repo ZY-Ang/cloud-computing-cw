@@ -1,0 +1,37 @@
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-javascript/ for more details
+#
+version: 2.1
+
+defaults: &config_project_defaults
+  working_directory: ~/repo
+
+executors:
+  node_default:
+    docker:
+      - image: circleci/node:12.13.0
+
+jobs:
+  deploy:
+    <<: *config_project_defaults
+    executor: node_default
+    steps:
+      - checkout
+      - run: curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
+      - run: which ibmcloud
+      - run: ibmcloud login -u $CF_USERNAME -p $CF_PASSWORD -r us-south
+      - run: ibmcloud target -o e0032221@u.nus.edu -s prod -r us-south
+      - run:
+          working_directory: ~/repo/ibmcloudfoundryapp
+          command: npm run deploy
+
+workflows:
+  version: 2
+  master_flow:
+    jobs:
+      - deploy:
+          filters:
+            branches:
+              only:
+                - master

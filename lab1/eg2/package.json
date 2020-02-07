@@ -1,0 +1,24 @@
+{
+  "name": "myapp",
+  "version": "0.0.1",
+  "description": "A sample nodejs app for Bluemix",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.14.2",
+    "cfenv": "1.0.x",
+    "express": "4.12.x",
+    "multer": "^1.1.0",
+    "watson-developer-cloud": "x",
+    "cf-deployment-tracker-client": "*"
+  },
+  "engines": {
+    "node": "4.2.4",
+    "npm": "3.10.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IBM-Bluemix/personality-insights-nodejs-tutorial.git"
+  }
+}
