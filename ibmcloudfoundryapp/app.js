@@ -26,8 +26,8 @@ const cookieParser = require('cookie-parser');
 const session = require('express-session');
 const cfenv = require('cfenv');
 const multer = require('multer');
-const PersonalityInsightsV3 = require('watson-developer-cloud/personality-insights/v3');
-
+const PersonalityInsightsV3 = require('ibm-watson/personality-insights/v3');
+const {IamAuthenticator} = require('ibm-watson/auth');
 
 const app = express();
 
@@ -42,9 +42,10 @@ app.use(cookieParser('your secret here'));
 // app.use(session());
 app.use(express.static(path.join(__dirname, 'public')));
 let db2;
-let hasConnect = false;
+let hasDB = false;
 let watsonConnect = false;
-let watsonpi;
+let watsonapi;
+const watsonPiEndpoint = 'https://gateway.watsonplatform.net/personality-insights/api/';
 
 // development only
 // if ('development' === app.get('env')) {
@@ -54,43 +55,48 @@ let watsonpi;
 if (process.env.VCAP_SERVICES) {
     const env = JSON.parse(process.env.VCAP_SERVICES);
 	if (env['dashDB For Transactions']) {
-        hasConnect = true;
+        hasDB = true;
 		db2 = env['dashDB For Transactions'][0].credentials;
 	}
+	if (env['personality_insights']) {
+        watsonConnect = true;
+        /**
+         * http://watson-developer-cloud.github.io/node-sdk/debug/classes/personalityinsightsv3.html#options
+         * @type {PersonalityInsightsV3}
+         */
+        watsonapi = new PersonalityInsightsV3({
+            authenticator: new IamAuthenticator({apikey: env['personality_insights'][0].credentials.apikey}),
+            version: '2017-10-13',
+            url: watsonPiEndpoint
+        });
+    }
 }
 
-if (!hasConnect && process.env.db2) {
+if (!hasDB && process.env.db2) {
     db2 = process.env.db2;
-} else if (!hasConnect) {
+} else if (!hasDB) {
     throw new Error("Please set db2 environment variable");
 }
 
 const connString = "DRIVER={DB2};DATABASE=" + db2.db + ";UID=" + db2.username + ";PWD=" + db2.password + ";HOSTNAME=" + db2.hostname + ";port=" + db2.port;
 
-let personalityInsights = new PersonalityInsightsV3({
-    version: '2017-10-13',
-    iam_apikey: '6Qee_EwWEKIhG17iNzGoKhiJbiVmzCE_NtYKn1jdP2Up',
-    url: 'https://gateway.watsonplatform.net/personality-insights/api'
-});
+if (!watsonConnect && process.env.piApiKey) {
+    watsonapi = new PersonalityInsightsV3({
+        authenticator: new IamAuthenticator({apikey: process.env.piApiKey}),
+        version: '2017-10-13',
+        url: watsonPiEndpoint
+    });
+} else if (!watsonConnect) {
+    throw new Error("Please set personalityInsightsApiKey environment variable");
+}
+
 const uploading = multer({storage: multer.memoryStorage()});
 
 app.get('/', routes.default);
-app.get('/q5', routes.listSysTables(ibmdb,connString));
-app.get('/q6', routes.watsonForm);
-app.post('/q6', uploading.single('file'), (req, res) => {
-    console.log("file");
-    const txtFile = req.file.buffer.toString();
-    console.log(txtFile);
-
-    personalityInsights.profile({content: txtFile}, (error, result) => {
-        if (error) {
-            console.error(error);
-            res.status(500).send(error.message);
-        } else {
-            res.send(result);
-        }
-    });
-});
+app.get('/lab1q5', routes.listSysTables(ibmdb, connString));
+app.get('/lab1q6', routes.watsonForm);
+app.get('/lab1q7', routes.listTestTable(ibmdb, connString));
+app.post('/lab1q6', uploading.single('file'), routes.watsonResponse(watsonapi));
 app.set('json spaces', 4);
 
 if (app.get('env') === 'development') {
