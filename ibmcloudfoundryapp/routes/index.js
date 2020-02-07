@@ -47,7 +47,7 @@ module.exports.watsonResponse = watsonapi => (req, res) => {
 
 module.exports.listTestTable = (ibmdb, connString) => (req, res) => ibmdb.open(connString, (err, conn) => {
 	if (err) {
-		res.status(500).send(err.message);
+		res.status(500).render('output', {data: "Error occurred: " + err.message});
 	} else {
 		conn.query('SELECT * FROM HJS20180.TESTDB', (err, tables, moreResultSets) => {
 			if (!err) {
@@ -72,6 +72,17 @@ module.exports.listTestTable = (ibmdb, connString) => (req, res) => ibmdb.open(c
 	}
 });
 
+module.exports.testDbChart = (PythonShell, pythonOptions) => (req, res) => {
+	PythonShell.run('testdbchart.py', pythonOptions, (err, results) => {
+		if (err) {
+			console.error(err);
+			res.status(500).render('output', {data: "Failed to run python script"});
+		} else {
+			res.render('output', {data: results.join('\n')});
+		}
+	});
+};
+
 module.exports.pythonTest = (PythonShell, pythonOptions) => (req, res) => {
 	console.log(pythonOptions);
 	PythonShell.runString('x=1+1;print(x);print("hello world")', pythonOptions, (err, results) => {
@@ -79,7 +90,6 @@ module.exports.pythonTest = (PythonShell, pythonOptions) => (req, res) => {
 			console.error(err.message);
 			res.status(500).render('output', {data: "Failed to run python script"});
 		} else {
-			console.log(results);
 			res.render('output', {data: results.join('\n')});
 		}
 	})

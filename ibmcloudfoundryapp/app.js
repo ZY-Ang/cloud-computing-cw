@@ -51,10 +51,15 @@ const watsonPiEndpoint = 'https://gateway.watsonplatform.net/personality-insight
 let pythonOptions = {};
 
 try {
-    const stdout = execSync(process.platform === "win32" ? 'where python' : 'which python').toString();
+    let pythonExec;
+    if (app.get('env') === 'development') {
+        pythonExec = path.join(__dirname, '/venv/Scripts/python.exe');
+    } else {
+        pythonExec = execSync('which python').toString();
+    }
     pythonOptions = {
         mode: 'text',
-        pythonPath: stdout.trim(),
+        pythonPath: pythonExec.trim(),
         pythonOptions: ['-u'],
         args: []
     };
@@ -106,7 +111,7 @@ app.get('/', routes.default);
 app.get('/lab1q5', routes.listSysTables(ibmdb, connString));
 app.get('/lab1q6', routes.watsonForm);
 app.get('/lab1q7', routes.listTestTable(ibmdb, connString));
-app.get('/lab1q8', routes.pythonTest(PythonShell, pythonOptions));
+app.get('/lab1q8', routes.testDbChart(PythonShell, {...pythonOptions, scriptPath: path.join(__dirname, "/pythonScripts")}));
 app.post('/lab1q6', uploading.single('file'), routes.watsonResponse(watsonapi));
 
 app.set('json spaces', 4);

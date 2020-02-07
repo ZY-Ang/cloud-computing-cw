@@ -1,19 +1,15 @@
 ---
-declared-services:
-  dashDB-nodesample:
-    label: "dashDB For Transactions"
-    plan: Lite
 applications:
 # replace the host variable below with your own unique one, as this one can be already taken
 - name: cs5224-assignments
   memory: 256M
   instances: 1
   path: .
-  host: cs5224-assignments
+#  host: cs5224-assignments LEGACY - enabling will cause multi-buildpacks to fail
   command:    node app.js
   buildpacks:
-  - sdk-for-nodejs
-  - python_buildpack
+    - sdk-for-nodejs
+    - python_buildpack
   services:
-  - cs5224-db2
-  - cs5224-personality-insights
+    - cs5224-db2
+    - cs5224-personality-insights

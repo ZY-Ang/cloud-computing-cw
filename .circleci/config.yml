@@ -21,7 +21,15 @@ jobs:
       - run: curl -fsSL https://clis.cloud.ibm.com/install/linux | sh
       - run: which ibmcloud
       - run: ibmcloud login -u $CF_USERNAME -p $CF_PASSWORD -r us-south
-      - run: ibmcloud target -o e0032221@u.nus.edu -s prod -r us-south
+      - run: ibmcloud target -o $CF_USERNAME -s prod -r us-south
+#      - run: |
+#          wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | sudo apt-key add -
+#          echo "deb https://packages.cloudfoundry.org/debian stable main" | sudo tee /etc/apt/sources.list.d/cloudfoundry-cli.list
+#          sudo apt-get update
+#          sudo apt-get install cf-cli
+#      - run: which cf && cf --version
+#      - run: cf login -a "api.us-south.cf.cloud.ibm.com" -u $CF_USERNAME -p $CF_PASSWORD -o $CF_USERNAME -s prod
+#      - run: cf push
       - run:
           working_directory: ~/repo/ibmcloudfoundryapp
           command: npm run deploy
