@@ -82,7 +82,7 @@ if (process.env.VCAP_SERVICES) {
         watsonapi = new PersonalityInsightsV3({
             authenticator: new IamAuthenticator({apikey: env['personality_insights'][0].credentials.apikey}),
             version: '2017-10-13',
-            url: watsonPiEndpoint
+            serviceUrl: env['personality_insights'][0].credentials.url || watsonPiEndpoint
         });
     }
 }
@@ -99,7 +99,7 @@ if (!watsonConnect && process.env.piApiKey) {
     watsonapi = new PersonalityInsightsV3({
         authenticator: new IamAuthenticator({apikey: process.env.piApiKey}),
         version: '2017-10-13',
-        url: watsonPiEndpoint
+        serviceUrl: watsonPiEndpoint
     });
 } else if (!watsonConnect) {
     throw new Error("Please set personalityInsightsApiKey environment variable");
