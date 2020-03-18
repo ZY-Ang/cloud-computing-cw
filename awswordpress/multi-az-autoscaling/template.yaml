@@ -153,11 +153,16 @@ Parameters:
     ConstraintDescription: must be either true or false.
   WebServerMinCapacity:
     Default: '2'
-    Description: The initial number of WebServer instances
+    Description: The minimum number of WebServer instances
     Type: Number
     MinValue: '1'
-    MaxValue: '5'
-    ConstraintDescription: must be between 1 and 5 EC2 instances.
+    ConstraintDescription: must be more than or equal to 1 instances.
+  WebServerMaxCapacity:
+    Default: '100'
+    Description: The maximum number of WebServer instances
+    Type: Number
+    MinValue: '1'
+    ConstraintDescription: must be more than or equal to 1 instances and greater than or equal to the value set for WebServerMinCapacity.
 Mappings:
   AWSInstanceType2Arch:
     t1.micro:
@@ -498,7 +503,7 @@ Resources:
       VPCZoneIdentifier: !Ref Subnets
       LaunchConfigurationName: !Ref LaunchConfig
       MinSize: !Ref WebServerMinCapacity
-      MaxSize: '100'
+      MaxSize: !Ref WebServerMaxCapacity
       TargetGroupARNs:
         - !Ref ALBTargetGroup
     CreationPolicy:
