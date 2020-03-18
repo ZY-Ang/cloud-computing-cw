@@ -12,8 +12,21 @@ executors:
     docker:
       - image: circleci/node:12.13.0
 
+orbs:
+  aws-cli: circleci/aws-cli@0.1.22
+
+commands:
+  configure_aws:
+    description: "Sets up AWS profiles, CLI and configuration"
+    steps:
+      - aws-cli/setup:
+          aws-access-key-id: AWS_ACCESS_KEY_ID
+          aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+          aws-region: AWS_REGION
+          profile-name: highsugar
+
 jobs:
-  deploy:
+  deploy_ibm_cf:
     <<: *config_project_defaults
     executor: node_default
     steps:
@@ -33,12 +46,44 @@ jobs:
       - run:
           working_directory: ~/repo/ibmcloudfoundryapp
           command: npm run deploy
+  deploy_wp_single:
+    <<: *config_project_defaults
+    executor: node_default
+    steps:
+      - checkout
+      - configure_aws
+      - run:
+          working_directory: ~/repo/awswordpress/single-instance
+          command: >-
+            aws cloudformation deploy
+            --template-file template.yaml
+            --stack-name cs5224-wp-single
+            --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.nano KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
+            --profile highsugar
+            --region $AWS_REGION
+  deploy_wp_multiaz:
+    <<: *config_project_defaults
+    executor: node_default
+    steps:
+      - checkout
+      - configure_aws
+      - run: echo TODO
 
 workflows:
   version: 2
   master_flow:
     jobs:
-      - deploy:
+      - deploy_ibm_cf:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy_wp_single:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy_wp_multiaz:
           filters:
             branches:
               only:
