@@ -158,13 +158,6 @@ Parameters:
     MinValue: '1'
     MaxValue: '5'
     ConstraintDescription: must be between 1 and 5 EC2 instances.
-  DBAllocatedStorage:
-    Default: '5'
-    Description: The size of the database (Gb)
-    Type: Number
-    MinValue: '5'
-    MaxValue: '1024'
-    ConstraintDescription: must be between 5 and 1024Gb.
 Mappings:
   AWSInstanceType2Arch:
     t1.micro:
@@ -629,7 +622,8 @@ Resources:
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: !Ref DBClass
-      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp2
+      AllocatedStorage: 20
       MaxAllocatedStorage: 256
       VPCSecurityGroups:
         - !GetAtt DBEC2SecurityGroup.GroupId
