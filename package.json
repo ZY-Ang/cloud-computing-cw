@@ -1,0 +1,23 @@
+{
+  "name": "cs5224",
+  "version": "1.0.0",
+  "description": "[![CircleCI](https://circleci.com/gh/ZY-Ang/cs5224.svg?style=svg&circle-token=8db0282e543bc31c747c41d9b46970129e335410)](https://circleci.com/gh/ZY-Ang/cs5224)",
+  "main": "vpc.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZY-Ang/cs5224.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ZY-Ang/cs5224/issues"
+  },
+  "homepage": "https://github.com/ZY-Ang/cs5224#readme",
+  "dependencies": {
+    "aws-sdk": "^2.641.0",
+    "shelljs": "^0.8.3"
+  }
+}

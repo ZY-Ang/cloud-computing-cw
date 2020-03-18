@@ -24,6 +24,22 @@ commands:
           aws-secret-access-key: AWS_SECRET_ACCESS_KEY
           aws-region: AWS_REGION
           profile-name: highsugar
+  install_root_deps:
+    description: "Installs root npm dependencies. Requires checkout of repo into ~/repo first."
+    steps:
+      - restore_cache:
+          keys:
+            - v1-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ .Revision }}
+            - v1-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}
+            - v1-{{ arch }}-{{ .Branch }}
+            - v1-{{ arch }}
+      - run:
+          working_directory: ~/repo
+          command: npm install
+      - save_cache:
+          paths:
+            - ~/repo/node_modules
+          key: v1-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ .Revision }}
 
 jobs:
   deploy_ibm_cf:
@@ -53,6 +69,7 @@ jobs:
       - checkout
       - configure_aws
       - run:
+          name: Deploy Architecture
           working_directory: ~/repo/awswordpress/single-instance
           command: >-
             aws cloudformation deploy
@@ -61,13 +78,30 @@ jobs:
             --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.nano KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
             --profile highsugar
             --region $AWS_REGION
+            --no-fail-on-empty-changeset
   deploy_wp_multiaz:
     <<: *config_project_defaults
     executor: node_default
     steps:
       - checkout
       - configure_aws
-      - run: echo TODO
+      - install_root_deps
+      - run:
+          name: Setup dependent environment variables from default VPC
+          command: |
+            echo "export DEFAULT_VPC_ID=$(node ~/repo/vpc.js vpc)" >> $BASH_ENV
+            echo "export DEFAULT_SUBNET_IDS=$(node ~/repo/vpc.js subnet)" >> $BASH_ENV
+      - run:
+          name: Deploy Architecture
+          working_directory: ~/repo/awswordpress/multi-az
+          command: >-
+            aws cloudformation deploy
+            --template-file template.yaml
+            --stack-name cs5224-wp-multiaz
+            --parameter-overrides DBAllocatedStorage=5 DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=3
+            --profile highsugar
+            --region $AWS_REGION
+            --no-fail-on-empty-changeset
 
 workflows:
   version: 2
