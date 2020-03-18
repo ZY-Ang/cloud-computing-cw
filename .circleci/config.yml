@@ -102,6 +102,29 @@ jobs:
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
+  deploy_wp_multiaz_autoscaling:
+    <<: *config_project_defaults
+    executor: node_default
+    steps:
+      - checkout
+      - configure_aws
+      - install_root_deps
+      - run:
+          name: Setup dependent environment variables from default VPC
+          command: |
+            echo "export DEFAULT_VPC_ID=$(node ~/repo/vpc.js vpc)" >> $BASH_ENV
+            echo "export DEFAULT_SUBNET_IDS=$(node ~/repo/vpc.js subnet)" >> $BASH_ENV
+      - run:
+          name: Deploy Architecture
+          working_directory: ~/repo/awswordpress/multi-az-autoscaling
+          command: >-
+            aws cloudformation deploy
+            --template-file template.yaml
+            --stack-name cs5224-wp-multiaz-autoscaling
+            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz-as DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2
+            --profile highsugar
+            --region $AWS_REGION
+            --no-fail-on-empty-changeset
 
 workflows:
   version: 2
@@ -118,6 +141,11 @@ workflows:
               only:
                 - master
       - deploy_wp_multiaz:
+          filters:
+            branches:
+              only:
+                - master
+      - deploy_wp_multiaz_autoscaling:
           filters:
             branches:
               only:
