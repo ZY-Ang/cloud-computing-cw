@@ -137,7 +137,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - ibm
       - deploy_wp_single:
           filters:
             branches:
