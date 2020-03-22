@@ -605,13 +605,8 @@ Resources:
           sources:
             /var/www/html: http://wordpress.org/latest.tar.gz
           files:
-            /tmp/create-wp-config:
+            /tmp/configure-permissions:
               content: !Sub |
-                #!/bin/bash -xe
-                cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
-                sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
-                sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
-                sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
                 sudo gpasswd --add ec2-user admins
                 sudo gpasswd --add apache admins
                 sudo chown -R :admins /var/www
@@ -620,8 +615,18 @@ Resources:
                 find /var/www -type d -exec sudo chmod 2775 {} \;
                 find /var/www -type f -exec sudo chmod 0664 {} \;
                 sudo service httpd restart
-                sudo echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
-                sudo echo "define( 'AS3CF_SETTINGS', serialize( array('provider' => 'aws', 'use-server-roles' => true, 'bucket' => '${S3Bucket}', 'region' => '${AWS::Region}', 'copy-to-s3' => true, 'serve-from-s3' => true) ) );" >> wp-config.php
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/create-wp-config:
+              content: !Sub |
+                #!/bin/bash -xe
+                cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+                sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
+                sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
+                sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
+                echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
+                echo "define( 'AS3CF_SETTINGS', serialize( array('provider' => 'aws', 'use-server-roles' => true, 'bucket' => '${S3Bucket}', 'region' => '${AWS::Region}', 'copy-to-s3' => true, 'serve-from-s3' => true) ) );" >> wp-config.php
               group: root
               mode: '000500'
               owner: root
@@ -653,13 +658,16 @@ Resources:
                       <!-- By default, redirect to the installed WordPress -->
                    </BODY></HTML>
           commands:
-            01_configure_wordpress:
+            01_configure_permissions:
+              command: /tmp/configure-permissions
+              cwd: /tmp
+            02_configure_wordpress:
               command: /tmp/create-wp-config
               cwd: /var/www/html/wordpress
-            02_install_wp_cli:
+            03_install_wp_cli:
               command: /tmp/install-wp-cli
               cwd: /tmp
-            03_install_wp_plugins:
+            04_install_wp_plugins:
               command: /tmp/install-wp-plugins
               cwd: /var/www/html/wordpress
           services:

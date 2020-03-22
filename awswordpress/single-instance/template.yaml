@@ -266,10 +266,13 @@ Resources:
                 mysql -u root --password='${DBRootPassword}' < /tmp/setup.mysql
               test: !Sub |
                 $(mysql ${DBName} -u root --password='${DBRootPassword}' >/dev/null 2>&1 </dev/null); (( $? !=0))
-            03_configure_wordpress:
+            03_configure_permissions:
+              command: /tmp/configure-permissions
+              cwd: /tmp
+            04_configure_wordpress:
               command: /tmp/create-wp-config
               cwd: /var/www/html/wordpress
-            04_install_wp_cli:
+            05_install_wp_cli:
               command: /tmp/install-wp-cli
               cwd: /tmp
         install_cfn:
@@ -301,13 +304,8 @@ Resources:
                 - /etc/cfn/hooks.d/cfn-auto-reloader.conf
         install_wordpress:
           files:
-            /tmp/create-wp-config:
+            /tmp/configure-permissions:
               content: !Sub |
-                #!/bin/bash -xe
-                cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
-                sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
-                sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
-                sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
                 sudo gpasswd --add ec2-user admins
                 sudo gpasswd --add apache admins
                 sudo chown -R :admins /var/www
@@ -316,7 +314,14 @@ Resources:
                 find /var/www -type d -exec sudo chmod 2775 {} \;
                 find /var/www -type f -exec sudo chmod 0664 {} \;
                 sudo service httpd restart
-                sudo echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
+            /tmp/create-wp-config:
+              content: !Sub |
+                #!/bin/bash -xe
+                cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+                sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
+                sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
+                sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
+                echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
               group: root
               mode: '000500'
               owner: root
