@@ -100,7 +100,7 @@ jobs:
             --template-file template.yaml
             --stack-name cs5224-wp-multiaz
             --capabilities CAPABILITY_IAM
-            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2
+            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2 WPSiteTitle="CS5224 Hello (Multi-AZ)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
@@ -124,7 +124,7 @@ jobs:
             --template-file template.yaml
             --stack-name cs5224-wp-multiaz-autoscaling
             --capabilities CAPABILITY_IAM
-            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz-as DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100
+            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz-as DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100 WPSiteTitle="CS5224 Hello (Multi-AZ Autoscaling)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset

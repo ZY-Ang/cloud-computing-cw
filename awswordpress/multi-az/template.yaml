@@ -155,6 +155,25 @@ Parameters:
     MinValue: '1'
     MaxValue: '5'
     ConstraintDescription: must be between 1 and 5 EC2 instances.
+  WPSiteTitle:
+    Default: 'My Wordpress Site'
+    Type: String
+    Description: The title of the wordpress site.
+  WPAdminUsername:
+    Default: 'admin'
+    Type: String
+    Description: The username of the adminstrator for wordpress.
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  WPAdminPassword:
+    NoEcho: 'true'
+    Description: The password of the adminstrator for wordpress.
+    Type: String
+  WPAdminEmail:
+    Description: The email of the adminstrator for wordpress.
+    Type: String
+    AllowedPattern: '/[^\s@]+@[^\s@]+\.[^\s@]+/'
+    ConstraintDescription: Must be a valid email address.
 Mappings:
   AWSInstanceType2Arch:
     t1.micro:
@@ -577,11 +596,21 @@ Resources:
               group: root
               mode: '000500'
               owner: root
+            /tmp/install-wp:
+              content: !Sub |
+                #!/bin/bash -xe
+                wp core install --url=${ApplicationLoadBalancer.DNSName} --title=${WPSiteTitle} --admin_user=${WPAdminUsername} --admin_password=${WPAdminPassword} --admin_email=${WPAdminEmail}
+              group: root
+              mode: '000500'
+              owner: root
             /tmp/install-wp-plugins:
               content: |
                 #!/bin/bash -xe
                 wp plugin install amazon-s3-and-cloudfront --version=2.2.1
                 wp plugin activate amazon-s3-and-cloudfront
+              group: root
+              mode: '000500'
+              owner: root
             /var/www/html/wordpress/wp-config.php:
               content: !Sub |
                 <?php
@@ -634,7 +663,10 @@ Resources:
             02_install_wp_cli:
               command: /tmp/install-wp-cli
               cwd: /tmp
-            03_install_wp_plugins:
+            03_install_wp:
+              command: /tmp/install-wp
+              cwd: /var/www/html/wordpress
+            04_install_wp_plugins:
               command: /tmp/install-wp-plugins
               cwd: /var/www/html/wordpress
           services:
@@ -734,5 +766,5 @@ Resources:
       BucketName: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
 Outputs:
   WebsiteURL:
-    Value: !Join ['', ['http://', !GetAtt ApplicationLoadBalancer.DNSName, /wordpress]]
-    Description: WordPress Website
+    Value: !Sub "http://${ApplicationLoadBalancer.DNSName}/wordpress"
+    Description: WordPress Website URL
