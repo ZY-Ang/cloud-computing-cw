@@ -305,6 +305,7 @@ Resources:
                 sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
                 sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
                 sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
+                chmod 777 /var/www/html/wordpress/wp-content
               group: root
               mode: '000500'
               owner: root

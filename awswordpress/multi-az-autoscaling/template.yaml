@@ -611,6 +611,7 @@ Resources:
                 sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
                 sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
                 sed -i "s/'localhost'/'${DBInstance.Endpoint.Address}'/g" wp-config.php
+                chmod 777 /var/www/html/wordpress/wp-content
               group: root
               mode: '000500'
               owner: root
@@ -674,6 +675,10 @@ Resources:
       MaxAllocatedStorage: 256
       VPCSecurityGroups:
         - !GetAtt DBEC2SecurityGroup.GroupId
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
 Outputs:
   WebsiteURL:
     Value: !Join ['', ['http://', !GetAtt ApplicationLoadBalancer.DNSName, /wordpress]]
