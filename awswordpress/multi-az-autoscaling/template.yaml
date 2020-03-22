@@ -596,7 +596,9 @@ Resources:
         install_wordpress:
           packages:
             yum:
+              ImageMagick: []
               php73: []
+              php73-gd: []
               php73-mysqlnd: []
               mysql: []
               httpd24: []
@@ -610,13 +612,33 @@ Resources:
                 sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
                 sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
                 sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
-                sudo chown -R apache /var/www
-                sudo chgrp -R apache /var/www
+                sudo gpasswd --add ec2-user admins
+                sudo gpasswd --add apache admins
+                sudo chown -R :admins /var/www
+                sudo chgrp -R :admins /var/www
                 sudo chmod 2775 /var/www
                 find /var/www -type d -exec sudo chmod 2775 {} \;
                 find /var/www -type f -exec sudo chmod 0664 {} \;
                 sudo service httpd restart
                 sudo echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
+                sudo echo "define( 'AS3CF_SETTINGS', serialize( array('provider' => 'aws', 'use-server-roles' => true, 'bucket' => '${S3Bucket}', 'region' => '${AWS::Region}', 'copy-to-s3' => true, 'serve-from-s3' => true) ) );" >> wp-config.php
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/install-wp-cli:
+              content: |
+                #!/bin/bash -xe
+                curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+                chmod +x wp-cli.phar
+                sudo mv wp-cli.phar /usr/local/bin/wp
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/install-wp-plugins:
+              content: |
+                #!/bin/bash -xe
+                wp plugin install amazon-s3-and-cloudfront
+                wp plugin activate amazon-s3-and-cloudfront
               group: root
               mode: '000500'
               owner: root
@@ -633,6 +655,12 @@ Resources:
           commands:
             01_configure_wordpress:
               command: /tmp/create-wp-config
+              cwd: /var/www/html/wordpress
+            02_install_wp_cli:
+              command: /tmp/install-wp-cli
+              cwd: /tmp
+            03_install_wp_plugins:
+              command: /tmp/install-wp-plugins
               cwd: /var/www/html/wordpress
           services:
             sysvinit:
