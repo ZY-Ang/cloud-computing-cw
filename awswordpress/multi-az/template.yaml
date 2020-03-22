@@ -567,31 +567,6 @@ Resources:
                 find /var/www -type f -exec sudo chmod 0664 {} \;
                 sudo service httpd restart
                 sudo echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
-                sudo echo "define( 'S3_UPLOADS_BUCKET', '${S3Bucket}' );" >> wp-config.php
-                sudo echo "define( 'S3_UPLOADS_REGION', '${AWS::Region}' );" >> wp-config.php
-                sudo echo "define( 'S3_UPLOADS_USE_INSTANCE_PROFILE', true );" >> wp-config.php
-              group: root
-              mode: '000500'
-              owner: root
-            /tmp/install-wp-cli-composer-s3plugin:
-              content: |
-                #!/bin/bash -xe
-                curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-                chmod +x wp-cli.phar
-                sudo mv wp-cli.phar /usr/local/bin/wp
-                curl -sS https://getcomposer.org/installer | php
-                sudo mv composer.phar /usr/local/bin/composer
-                sudo ln -s /usr/local/bin/composer /usr/bin/composer
-                wget -c https://github.com/humanmade/S3-Uploads/archive/2.2.1.tar.gz -O - | tar -xz
-                sudo mv S3-Uploads-2.2.1/ /var/www/html/wordpress/wp-content/plugins/s3-uploads
-              group: root
-              mode: '000500'
-              owner: root
-            /tmp/activate-s3-uploads-plugin:
-              content: |
-                wp plugin activate s3-uploads
-                wp s3-uploads verify
-                wp s3-uploads enable
               group: root
               mode: '000500'
               owner: root
@@ -608,15 +583,6 @@ Resources:
           commands:
             01_configure_wordpress:
               command: /tmp/create-wp-config
-              cwd: /var/www/html/wordpress
-            02_install_wp_cli_composer_s3plugin:
-              command: /tmp/install-wp-cli-composer-s3plugin
-              cwd: /tmp
-            03_install_s3_uploads_plugin:
-              command: composer install
-              cwd: /var/www/html/wordpress/wp-content/plugins/s3-uploads
-            04_activate_s3_uploads_plugin:
-              command: /tmp/activate-s3-uploads-plugin
               cwd: /var/www/html/wordpress
           services:
             sysvinit:

@@ -357,6 +357,8 @@ Resources:
       ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
       InstanceType:
         Ref: InstanceType
+      IamInstanceProfile:
+        Ref: WebServerInstanceProfile
       KeyName:
         Ref: KeyName
       SecurityGroups:
@@ -368,6 +370,29 @@ Resources:
            yum update -y aws-cfn-bootstrap
            /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource WebServer --configsets wordpress_install --region ${AWS::Region}
            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServer --region ${AWS::Region}
+  WebServerInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref WebServerRole
+  WebServerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WebServerS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: "AllowRootAndHomeListingOfBucket"
+                Effect: Allow
+                Action: "s3:*"
+                Resource: "*"
   WebServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:

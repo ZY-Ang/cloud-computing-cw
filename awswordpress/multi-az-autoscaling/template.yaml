@@ -645,6 +645,8 @@ Resources:
         - !Ref 'AWS::Region'
         - !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]
       InstanceType: !Ref InstanceType
+      IamInstanceProfile:
+        Ref: LaunchConfigInstanceProfile
       SecurityGroups:
         - !Ref WebServerSecurityGroup
       KeyName: !Ref KeyName
@@ -655,6 +657,49 @@ Resources:
           yum update -y aws-cfn-bootstrap
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource LaunchConfig --configsets wordpress_install --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServerAutoScalingGroup --region ${AWS::Region}
+  LaunchConfigInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref LaunchConfigRole
+  LaunchConfigRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LaunchConfigS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: "AllowRootAndHomeListingOfBucket"
+                Effect: Allow
+                Action: "s3:ListBucket"
+                Resource: !Sub "${S3Bucket.Arn}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - "*"
+              - Sid: "ObjectActions"
+                Effect: Allow
+                Action:
+                  - "s3:AbortMultipartUpload"
+                  - "s3:DeleteObject"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+                  - "s3:GetBucketPolicy"
+                  - "s3:GetObject"
+                  - "s3:GetObjectAcl"
+                  - "s3:ListBucket"
+                  - "s3:ListBucketMultipartUploads"
+                  - "s3:ListMultipartUploadParts"
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                Resource: !Sub "${S3Bucket.Arn}/*"
   DBEC2SecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
