@@ -648,7 +648,7 @@ Resources:
             /tmp/install-wp:
               content: !Sub |
                 #!/bin/bash -xe
-                wp core install --url=${ApplicationLoadBalancer.DNSName} --title=${WPSiteTitle} --admin_user=${WPAdminUsername} --admin_password=${WPAdminPassword} --admin_email=${WPAdminEmail}
+                wp core install --url="http://${ApplicationLoadBalancer.DNSName}/wordpress" --title="${WPSiteTitle}" --admin_user=${WPAdminUsername} --admin_password=${WPAdminPassword} --admin_email=${WPAdminEmail}
               group: root
               mode: '000500'
               owner: root
