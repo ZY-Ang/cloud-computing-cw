@@ -172,7 +172,6 @@ Parameters:
   WPAdminEmail:
     Description: The email of the adminstrator for wordpress.
     Type: String
-    AllowedPattern: '/[^\s@]+@[^\s@]+\.[^\s@]+/'
     ConstraintDescription: Must be a valid email address.
 Mappings:
   AWSInstanceType2Arch:
