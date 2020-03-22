@@ -74,7 +74,7 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-single
+            --stack-name cs5224-wp-single-$CIRCLE_BUILD_NUM
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
             --profile highsugar
@@ -98,7 +98,7 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-multiaz
+            --stack-name cs5224-wp-multiaz-$CIRCLE_BUILD_NUM
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2 WPSiteTitle="CS5224 Hello (Multi-AZ)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar
@@ -122,7 +122,7 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-multiaz-autoscaling
+            --stack-name cs5224-wp-multiaz-autoscaling-$CIRCLE_BUILD_NUM
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz-as DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100 WPSiteTitle="CS5224 Hello (Multi-AZ Autoscaling)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar

@@ -598,15 +598,15 @@ Resources:
             /tmp/install-wp:
               content: !Sub |
                 #!/bin/bash -xe
-                wp core install --url="http://${ApplicationLoadBalancer.DNSName}/wordpress" --title="${WPSiteTitle}" --admin_user=${WPAdminUsername} --admin_password=${WPAdminPassword} --admin_email=${WPAdminEmail}
+                /usr/local/bin/wp core install --url="http://${ApplicationLoadBalancer.DNSName}/wordpress" --title="${WPSiteTitle}" --admin_user=${WPAdminUsername} --admin_password=${WPAdminPassword} --admin_email=${WPAdminEmail}
               group: root
               mode: '000500'
               owner: root
             /tmp/install-wp-plugins:
               content: |
                 #!/bin/bash -xe
-                wp plugin install amazon-s3-and-cloudfront --version=2.2.1
-                wp plugin activate amazon-s3-and-cloudfront
+                /usr/local/bin/wp plugin install amazon-s3-and-cloudfront --version=2.2.1
+                /usr/local/bin/wp plugin activate amazon-s3-and-cloudfront
               group: root
               mode: '000500'
               owner: root
@@ -657,16 +657,16 @@ Resources:
                 </BODY></HTML>
           commands:
             01_configure_permissions:
-              command: /tmp/configure-permissions
+              command: /tmp/configure-permissions &>> /tmp/configure-permissions.log
               cwd: /tmp
             02_install_wp_cli:
-              command: /tmp/install-wp-cli
+              command: /tmp/install-wp-cli &>> /tmp/install-wp-cli.log
               cwd: /tmp
             03_install_wp:
-              command: /tmp/install-wp
+              command: /tmp/install-wp &>> /tmp/install-wp.log
               cwd: /var/www/html/wordpress
             04_install_wp_plugins:
-              command: /tmp/install-wp-plugins
+              command: /tmp/install-wp-plugins &>> /tmp/install-wp-plugins.log
               cwd: /var/www/html/wordpress
           services:
             sysvinit:
