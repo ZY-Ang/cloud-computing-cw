@@ -560,11 +560,16 @@ Resources:
                 sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
                 sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
                 sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
-                sed -i "s/'localhost'/'${DBInstance.Endpoint.Address}'/g" wp-config.php
-                echo "define( 'S3_UPLOADS_BUCKET', '${S3Bucket}' );" >> wp-config.php
-                echo "define( 'S3_UPLOADS_REGION', '${AWS::Region}' );" >> wp-config.php
-                echo "define( 'S3_UPLOADS_USE_INSTANCE_PROFILE', true );" >> wp-config.php
-                chmod 777 /var/www/html/wordpress
+                sudo chown -R apache /var/www
+                sudo chgrp -R apache /var/www
+                sudo chmod 2775 /var/www
+                find /var/www -type d -exec sudo chmod 2775 {} \;
+                find /var/www -type f -exec sudo chmod 0664 {} \;
+                sudo service httpd restart
+                sudo echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
+                sudo echo "define( 'S3_UPLOADS_BUCKET', '${S3Bucket}' );" >> wp-config.php
+                sudo echo "define( 'S3_UPLOADS_REGION', '${AWS::Region}' );" >> wp-config.php
+                sudo echo "define( 'S3_UPLOADS_USE_INSTANCE_PROFILE', true );" >> wp-config.php
               group: root
               mode: '000500'
               owner: root
@@ -573,12 +578,12 @@ Resources:
                 #!/bin/bash -xe
                 curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
                 chmod +x wp-cli.phar
-                mv wp-cli.phar /usr/local/bin/wp
+                sudo mv wp-cli.phar /usr/local/bin/wp
                 curl -sS https://getcomposer.org/installer | php
-                mv composer.phar /usr/local/bin/composer
-                ln -s /usr/local/bin/composer /usr/bin/composer
+                sudo mv composer.phar /usr/local/bin/composer
+                sudo ln -s /usr/local/bin/composer /usr/bin/composer
                 wget -c https://github.com/humanmade/S3-Uploads/archive/2.2.1.tar.gz -O - | tar -xz
-                mv S3-Uploads-2.2.1/ /var/www/html/wordpress/wp-content/plugins/s3-uploads
+                sudo mv S3-Uploads-2.2.1/ /var/www/html/wordpress/wp-content/plugins/s3-uploads
               group: root
               mode: '000500'
               owner: root
@@ -655,14 +660,30 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              - Sid: "ListObjectsInBucket"
+              - Sid: "AllowRootAndHomeListingOfBucket"
                 Effect: Allow
                 Action: "s3:ListBucket"
-                Resource: !GetAtt [S3Bucket, Arn]
-              - Sid: "AllObjectActions"
+                Resource: !Sub "${S3Bucket.Arn}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - "*"
+              - Sid: "ObjectActions"
                 Effect: Allow
-                Action: "s3:*Object"
-                Resource: !Join ["", [!GetAtt [S3Bucket, Arn], "/*"]]
+                Action:
+                  - "s3:AbortMultipartUpload"
+                  - "s3:DeleteObject"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+                  - "s3:GetBucketPolicy"
+                  - "s3:GetObject"
+                  - "s3:GetObjectAcl"
+                  - "s3:ListBucket"
+                  - "s3:ListBucketMultipartUploads"
+                  - "s3:ListMultipartUploadParts"
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                Resource: !Sub "${S3Bucket.Arn}/*"
   DBEC2SecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
