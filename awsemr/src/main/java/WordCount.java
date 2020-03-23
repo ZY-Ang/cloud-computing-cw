@@ -24,8 +24,12 @@ public class WordCount {
       StringTokenizer itr = new StringTokenizer(value.toString()); // line to string token
 
       while (itr.hasMoreTokens()) {
-        word.set(itr.nextToken());    // set word as each input keyword
-        context.write(word, one);     // create a pair <keyword, 1> 
+        // get next word without special characters and lower-cased
+        String cWord = itr.nextToken().toLowerCase().replaceAll("[^a-zA-Z0-9]", "");
+        if (cWord.equals("the") || cWord.equals("a") || cWord.equals("an")) {
+          word.set(cWord);              // set word as each input keyword
+          context.write(word, one);     // create a pair <keyword, 1>
+        }
       }
     }
   }
