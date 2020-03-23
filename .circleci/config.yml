@@ -11,6 +11,9 @@ executors:
   node_default:
     docker:
       - image: circleci/node:12.13.0
+  java_default:
+    docker:
+      - image: circleci/openjdk:8
 
 orbs:
   aws-cli: circleci/aws-cli@0.1.22
@@ -128,6 +131,42 @@ jobs:
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
+  sync_up_emr_files:
+    <<: *config_project_defaults
+    executor: java_default
+    steps:
+      - checkout
+      - configure_aws
+      - restore_cache:
+          name: Restore latest node_modules from cache
+          keys:
+            - emr-v1-{{ arch }}-{{ .Branch }}-{{ checksum "awsemr/pom.xml" }}-{{ .Revision }}
+            - emr-v1-{{ arch }}-{{ .Branch }}-{{ checksum "awsemr/pom.xml" }}
+            - emr-v1-{{ arch }}-{{ .Branch }}
+            - emr-v1-{{ arch }}
+      - run:
+          working_directory: ~/repo/awsemr
+          command: mvn dependency:go-offline
+      - save_cache:
+          name: Save post-install m2 dependencies into cache
+          key: emr-v1-{{ arch }}-{{ .Branch }}-{{ checksum "awsemr/pom.xml" }}-{{ .Revision }}
+          paths:
+            - ~/.m2
+      - run:
+          working_directory: ~/repo/awsemr
+          command: mvn clean
+      - run:
+          working_directory: ~/repo/awsemr
+          command: mvn package
+      - run:
+          working_directory: ~/repo/awsemr
+          command: mv ./target/* ./s3/
+      - run:
+          name: Upload directory to S3
+          working_directory: ~/repo/awsemr/s3
+          command: |
+            aws s3 rm s3://alex-emr --recursive --profile highsugar
+            aws s3 sync . s3://alex-emr --profile highsugar
 
 workflows:
   version: 2
@@ -153,3 +192,8 @@ workflows:
             branches:
               only:
                 - master
+      - sync_up_emr_files:
+          filters:
+            branches:
+              only:
+                - emr
