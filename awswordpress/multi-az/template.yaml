@@ -113,9 +113,6 @@ Parameters:
       - db.t2.medium
       - db.t2.large
     ConstraintDescription: must select a valid database instance type.
-  DBInstanceIdentifier:
-    Description: The unique WordPress database identifier
-    Type: String
   DBName:
     Default: wordpressdb
     Description: The WordPress database name
@@ -155,6 +152,24 @@ Parameters:
     MinValue: '1'
     MaxValue: '5'
     ConstraintDescription: must be between 1 and 5 EC2 instances.
+  WPSiteTitle:
+    Default: 'My Wordpress Site'
+    Type: String
+    Description: The title of the wordpress site.
+  WPAdminUsername:
+    Default: 'admin'
+    Type: String
+    Description: The username of the adminstrator for wordpress.
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  WPAdminPassword:
+    NoEcho: 'true'
+    Description: The password of the adminstrator for wordpress.
+    Type: String
+  WPAdminEmail:
+    Description: The email of the adminstrator for wordpress.
+    Type: String
+    ConstraintDescription: Must be a valid email address.
 Mappings:
   AWSInstanceType2Arch:
     t1.micro:
@@ -546,37 +561,119 @@ Resources:
         install_wordpress:
           packages:
             yum:
+              ImageMagick: []
               php73: []
+              php73-gd: []
               php73-mysqlnd: []
               mysql: []
               httpd24: []
           sources:
             /var/www/html: http://wordpress.org/latest.tar.gz
           files:
-            /tmp/create-wp-config:
+            /tmp/configure-permissions:
               content: !Sub |
-                #!/bin/bash -xe
-                cp /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
-                sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
-                sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
-                sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
-                sed -i "s/'localhost'/'${DBInstance.Endpoint.Address}'/g" wp-config.php
+                sudo gpasswd --add ec2-user ec2-user
+                sudo gpasswd --add apache ec2-user
+                sudo chown -R :ec2-user /var/www
+                sudo chgrp -R ec2-user /var/www
+                sudo chmod 2775 /var/www
+                find /var/www -type d -exec sudo chmod 2775 {} \;
+                find /var/www -type f -exec sudo chmod 0664 {} \;
+                sudo service httpd restart
               group: root
               mode: '000500'
               owner: root
+            /tmp/install-wp-cli:
+              content: |
+                #!/bin/bash -xe
+                curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+                chmod +x wp-cli.phar
+                sudo mv wp-cli.phar /usr/local/bin/wp
+                sudo ln -s /usr/local/bin/wp /usr/bin/wp
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/install-wp:
+              content: !Sub |
+                #!/bin/bash -xe
+                sudo -u ec2-user -i -- wp core install \
+                  --path=/var/www/html/wordpress \
+                  --url="http://${ApplicationLoadBalancer.DNSName}/wordpress" \
+                  --title="${WPSiteTitle}" \
+                  --admin_user=${WPAdminUsername} \
+                  --admin_password=${WPAdminPassword} \
+                  --admin_email=${WPAdminEmail}
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/install-wp-plugins:
+              content: |
+                #!/bin/bash -xe
+                sudo -u ec2-user -i -- wp plugin install amazon-s3-and-cloudfront \
+                  --version=2.2.1 \
+                  --path=/var/www/html/wordpress
+                sudo -u ec2-user -i -- wp plugin activate amazon-s3-and-cloudfront \
+                  --path=/var/www/html/wordpress
+              group: root
+              mode: '000500'
+              owner: root
+            /var/www/html/wordpress/wp-config.php:
+              content: !Sub |
+                <?php
+
+                define('AS3CF_SETTINGS', serialize(array(
+                  'provider' => 'aws',
+                  'use-server-roles' => true,
+                  'bucket' => '${S3Bucket}',
+                  'region' => '${AWS::Region}',
+                  'copy-to-s3' => true,
+                  'serve-from-s3' => true
+                )));
+                define('DB_NAME', '${DBName}');
+                define('DB_USER', '${DBUser}');
+                define('DB_PASSWORD', '${DBPassword}');
+                define('DB_HOST', '${DBInstance.Endpoint.Address}');
+                define('DB_CHARSET', 'utf8');
+                define('DB_COLLATE', '');
+                define('AUTH_KEY', 'put your unique phrase here');
+                define('SECURE_AUTH_KEY', 'put your unique phrase here');
+                define('LOGGED_IN_KEY', 'put your unique phrase here');
+                define('NONCE_KEY', 'put your unique phrase here');
+                define('AUTH_SALT', 'put your unique phrase here');
+                define('SECURE_AUTH_SALT', 'put your unique phrase here');
+                define('LOGGED_IN_SALT', 'put your unique phrase here');
+                define('NONCE_SALT', 'put your unique phrase here');
+                $table_prefix = 'wp_';
+                define('WP_DEBUG', true);
+                define('WP_DEBUG_LOG', true);
+                define('WP_DEBUG_DISPLAY', false);
+                if (!defined('ABSPATH')) {
+                	define('ABSPATH', dirname(__FILE__) . '/');
+                }
+                require_once( ABSPATH . 'wp-settings.php' );
+                define('FS_METHOD', 'direct' );
             /var/www/noindex/index.html:
               content: |
                 <!DOCTYPE html>
                 <HTML><HEAD>
-                      <TITLE>HTML Meta Tag</title>
-                      <META HTTP-EQUIV= "refresh" CONTENT= "0; url = /wordpress" />
-                   </HEAD><BODY>
-                      <P>Redirect to <A HREF=/wordpress>WordPress</A>.</P>
-                      <!-- By default, redirect to the installed WordPress -->
-                   </BODY></HTML>
+                  <TITLE>HTML Meta Tag</title>
+                  <META HTTP-EQUIV= "refresh" CONTENT= "0; url = /wordpress" />
+                </HEAD><BODY>
+                  <P>Redirect to <A HREF=/wordpress>WordPress</A>.</P>
+                  <!-- By default, redirect to the installed WordPress -->
+                </BODY></HTML>
           commands:
-            01_configure_wordpress:
-              command: /tmp/create-wp-config
+            01_configure_permissions:
+              command: /tmp/configure-permissions &>> /tmp/configure-permissions.log
+              cwd: /tmp
+            02_install_wp_cli:
+              command: /tmp/install-wp-cli &>> /tmp/install-wp-cli.log
+              cwd: /tmp
+            03_install_wp:
+              command: /tmp/install-wp &>> /tmp/install-wp.log
+              cwd: /var/www/html/wordpress
+            04_install_wp_plugins:
+              command: /tmp/install-wp-plugins &>> /tmp/install-wp-plugins.log
               cwd: /var/www/html/wordpress
           services:
             sysvinit:
@@ -589,6 +686,8 @@ Resources:
         - !Ref 'AWS::Region'
         - !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]
       InstanceType: !Ref InstanceType
+      IamInstanceProfile:
+        Ref: LaunchConfigInstanceProfile
       SecurityGroups:
         - !Ref WebServerSecurityGroup
       KeyName: !Ref KeyName
@@ -599,6 +698,50 @@ Resources:
           yum update -y aws-cfn-bootstrap
           /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource LaunchConfig --configsets wordpress_install --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServerGroup --region ${AWS::Region}
+          sudo rm -rf /tmp/*
+  LaunchConfigInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref LaunchConfigRole
+  LaunchConfigRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LaunchConfigS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: "AllowRootAndHomeListingOfBucket"
+                Effect: Allow
+                Action: "s3:ListBucket"
+                Resource: !Sub "${S3Bucket.Arn}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - "*"
+              - Sid: "ObjectActions"
+                Effect: Allow
+                Action:
+                  - "s3:AbortMultipartUpload"
+                  - "s3:DeleteObject"
+                  - "s3:GetBucketAcl"
+                  - "s3:GetBucketLocation"
+                  - "s3:GetBucketPolicy"
+                  - "s3:GetObject"
+                  - "s3:GetObjectAcl"
+                  - "s3:ListBucket"
+                  - "s3:ListBucketMultipartUploads"
+                  - "s3:ListMultipartUploadParts"
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                Resource: !Sub "${S3Bucket.Arn}/*"
   DBEC2SecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -613,7 +756,7 @@ Resources:
     Type: 'AWS::RDS::DBInstance'
     Properties:
       DBName: !Ref DBName
-      DBInstanceIdentifier: !Ref DBInstanceIdentifier
+      DBInstanceIdentifier: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
       Engine: MySQL
       MultiAZ: !Ref MultiAZDatabase
       MasterUsername: !Ref DBUser
@@ -624,7 +767,11 @@ Resources:
       MaxAllocatedStorage: 256
       VPCSecurityGroups:
         - !GetAtt DBEC2SecurityGroup.GroupId
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
 Outputs:
   WebsiteURL:
-    Value: !Join ['', ['http://', !GetAtt ApplicationLoadBalancer.DNSName, /wordpress]]
-    Description: WordPress Website
+    Value: !Sub "http://${ApplicationLoadBalancer.DNSName}/wordpress"
+    Description: WordPress Website URL

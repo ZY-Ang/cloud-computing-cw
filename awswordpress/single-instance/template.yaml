@@ -266,9 +266,15 @@ Resources:
                 mysql -u root --password='${DBRootPassword}' < /tmp/setup.mysql
               test: !Sub |
                 $(mysql ${DBName} -u root --password='${DBRootPassword}' >/dev/null 2>&1 </dev/null); (( $? !=0))
-            03_configure_wordpress:
+            03_configure_permissions:
+              command: /tmp/configure-permissions
+              cwd: /tmp
+            04_configure_wordpress:
               command: /tmp/create-wp-config
               cwd: /var/www/html/wordpress
+            05_install_wp_cli:
+              command: /tmp/install-wp-cli
+              cwd: /tmp
         install_cfn:
           files:
             /etc/cfn/cfn-hup.conf:
@@ -298,6 +304,19 @@ Resources:
                 - /etc/cfn/hooks.d/cfn-auto-reloader.conf
         install_wordpress:
           files:
+            /tmp/configure-permissions:
+              content: !Sub |
+                sudo gpasswd --add ec2-user ec2-user
+                sudo gpasswd --add apache ec2-user
+                sudo chown -R :ec2-user /var/www
+                sudo chgrp -R ec2-user /var/www
+                sudo chmod 2775 /var/www
+                find /var/www -type d -exec sudo chmod 2775 {} \;
+                find /var/www -type f -exec sudo chmod 0664 {} \;
+                sudo service httpd restart
+              group: root
+              mode: '000500'
+              owner: root
             /tmp/create-wp-config:
               content: !Sub |
                 #!/bin/bash -xe
@@ -305,6 +324,16 @@ Resources:
                 sed -i "s/'database_name_here'/'${DBName}'/g" wp-config.php
                 sed -i "s/'username_here'/'${DBUser}'/g" wp-config.php
                 sed -i "s/'password_here'/'${DBPassword}'/g" wp-config.php
+                echo "define( 'FS_METHOD', 'direct' );" >> wp-config.php
+              group: root
+              mode: '000500'
+              owner: root
+            /tmp/install-wp-cli:
+              content: |
+                #!/bin/bash -xe
+                curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+                chmod +x wp-cli.phar
+                sudo mv wp-cli.phar /usr/local/bin/wp
               group: root
               mode: '000500'
               owner: root
@@ -350,6 +379,8 @@ Resources:
       ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
       InstanceType:
         Ref: InstanceType
+      IamInstanceProfile:
+        Ref: WebServerInstanceProfile
       KeyName:
         Ref: KeyName
       SecurityGroups:
@@ -361,6 +392,29 @@ Resources:
            yum update -y aws-cfn-bootstrap
            /opt/aws/bin/cfn-init -v --stack ${AWS::StackId} --resource WebServer --configsets wordpress_install --region ${AWS::Region}
            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackId} --resource WebServer --region ${AWS::Region}
+  WebServerInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      Roles:
+        - !Ref WebServerRole
+  WebServerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WebServerS3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: "AllowRootAndHomeListingOfBucket"
+                Effect: Allow
+                Action: "s3:*"
+                Resource: "*"
   WebServerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:

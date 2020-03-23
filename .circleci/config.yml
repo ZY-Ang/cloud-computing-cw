@@ -74,8 +74,9 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-single
-            --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.nano KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
+            --stack-name alex-wp-single
+            --capabilities CAPABILITY_IAM
+            --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
@@ -97,8 +98,9 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-multiaz
-            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.nano KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2
+            --stack-name alex-wp-multiaz
+            --capabilities CAPABILITY_IAM
+            --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2 WPSiteTitle="CS5224 Hello (Multi-AZ)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
@@ -120,8 +122,9 @@ jobs:
           command: >-
             aws cloudformation deploy
             --template-file template.yaml
-            --stack-name cs5224-wp-multiaz-autoscaling
-            --parameter-overrides DBClass=db.t2.small DBInstanceIdentifier=db-cs5224-wp-multiaz-as DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.nano KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100
+            --stack-name alex-wp-multiaz-autoscaling
+            --capabilities CAPABILITY_IAM
+            --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100 WPSiteTitle="CS5224 Hello (Multi-AZ Autoscaling)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
             --profile highsugar
             --region $AWS_REGION
             --no-fail-on-empty-changeset
@@ -134,7 +137,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - ibm
       - deploy_wp_single:
           filters:
             branches:
