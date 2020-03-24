@@ -40,6 +40,25 @@ const getDefaultVpcId = async (credentials) => {
     return Vpcs[0].VpcId;
 };
 
+const getDefaultVpcSecurityGroupId = async (credentials, vpcId) => {
+    const {SecurityGroups} = await new Promise((resolve, reject) =>
+        (new AWS.EC2({credentials}))
+            .describeSecurityGroups({Filters: [{Name: "group-name", Values: ["default"]}]}, (err, data) => {
+                if (err) {
+                    console.error("Error while calling ec2.describeSecurityGroups. You most likely forgot to set up aws credentials. See https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/loading-node-credentials-shared.html for more information");
+                    reject(err);
+                } else if (!data.SecurityGroups || !data.SecurityGroups.length) {
+                    console.error("Error while getting data.SecurityGroups. This is unexpected");
+                    reject(data);
+                } else {
+                    resolve(data);
+                }
+            })
+    );
+    
+    return SecurityGroups[0].GroupId;
+};
+
 const getDefaultVpcSubnetIds = async (credentials, vpcId) => {
     const {Subnets} = await new Promise((resolve, reject) =>
         (new AWS.EC2({credentials}))
@@ -61,7 +80,7 @@ const getDefaultVpcSubnetIds = async (credentials, vpcId) => {
 
 const run = async () => {
     if (process.argv.length !== 3) {
-        throw new Error("Invalid number of arguments. Please run node env.js <vpc/subnet>");
+        throw new Error("Invalid number of arguments. Please run node vpc.js <vpc/subnet/sg>");
     }
 
     // console.log("================== ENVIRONMENT VARIABLES ==================");
@@ -104,8 +123,11 @@ const run = async () => {
     } else if (process.argv[2].toLowerCase().includes('subnet')) {
         const vpcs = await getDefaultVpcSubnetIds(credentials, defaultVpcId);
         console.log(vpcs.join(','));
+    } else if (process.argv[2].toLowerCase().includes('sg')) {
+        const securityGroups = await getDefaultVpcSecurityGroupId(credentials, defaultVpcId);
+        console.log(securityGroups);
     } else {
-        throw new Error(`Unrecognized command ${process.argv[2]}. Please use one of vpc/subnet`);
+        throw new Error(`Unrecognized command ${process.argv[2]}. Please use one of vpc/subnet/sg`);
     }
 };
 
