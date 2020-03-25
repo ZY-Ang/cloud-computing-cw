@@ -63,12 +63,12 @@ commands:
             - ~/repo/node_modules
           key: v1-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ .Revision }}
   download_wordpress:
-    description: "Downloads http://wordpress.org/latest.tar.gz and extracts files to subdirectory"
+    description: "Downloads wordpress and extracts files to subdirectory"
     steps:
       - run:
           working_directory: ~/tmp
           name: Download wordpress latest
-          command: wget -c http://wordpress.org/latest.tar.gz -O - | tar -xz
+          command: wget -c https://wordpress.org/latest.tar.gz -O - | tar -xz
       - run: cp -r ~/tmp/wordpress/* ~/repo/awswordpress/lambda/src/php
 
 jobs:
@@ -241,7 +241,7 @@ jobs:
             --s3-bucket $DEPLOYMENT_BUCKET
             --stack-name $STACK_NAME
             --capabilities CAPABILITY_IAM
-            --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER VpcId=$DEFAULT_VPC_ID VpcSubnetIds=$DEFAULT_SUBNET_IDS
+            --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER VpcId=$DEFAULT_VPC_ID VpcSubnetIds=$DEFAULT_SUBNET_IDS
             --profile $AWS_BUILD_PROFILE
             --region $AWS_REGION
             --no-fail-on-empty-changeset
@@ -302,17 +302,20 @@ workflows:
           filters:
             branches:
               only:
+                - single
                 - master
       - deploy_wp_multiaz:
           filters:
             branches:
               only:
                 - master
+                - maz
       - deploy_wp_multiaz_autoscaling:
           filters:
             branches:
               only:
                 - master
+                - as
       - sync_up_emr_files:
           filters:
             branches:
@@ -323,3 +326,4 @@ workflows:
             branches:
               only:
                 - master
+                - lambda
