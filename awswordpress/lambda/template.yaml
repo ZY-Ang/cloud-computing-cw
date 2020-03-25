@@ -1,0 +1,340 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: WordPress on AWS Lambda!
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  VpcId:
+    Type: 'AWS::EC2::VPC::Id'
+  VpcSubnetIds:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+  StageName:
+    Type: String
+    Default: 'prod'
+  CloudFrontPriceClass:
+    Type: String
+    Default: 'PriceClass_All'
+  DBName:
+    Default: wordpressdb
+    Description: The WordPress database name
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBUser:
+    NoEcho: 'true'
+    Description: The WordPress database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBPassword:
+    NoEcho: 'true'
+    Description: The WordPress database admin account password
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: must contain only alphanumeric characters.
+Resources:
+  phpserver:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-phpserver
+      Description: WordPress Webserver
+      CodeUri: src/php
+      Runtime: provided
+      Handler: handler.php
+      MemorySize: 1344
+      Timeout: 30
+      Tracing: Active
+      Layers:
+        # - arn:aws:lambda:us-west-2:887080169480:layer:php73:2
+        - !Sub "arn:aws:lambda:${AWS::Region}:887080169480:layer:php73:3"
+
+      Environment:
+        Variables:
+          S3_UPLOADS_BUCKET: !Ref assetsS3
+          DATABASE_ENDPOINT: !GetAtt [DBCluster, Endpoint.Address]
+          DATABASE_NAME: !Ref DBName
+
+      Policies:
+        - VPCAccessPolicy: {}
+        - S3FullAccessPolicy:
+            BucketName: !Ref assetsS3
+
+      Events:
+        apiRoot:
+          Type: Api
+          Properties:
+            Path: '/'
+            Method: ANY
+            RestApiId: !Ref restapi
+
+        api:
+          Type: Api
+          Properties:
+            Path: '/{proxy+}'
+            Method: ANY
+            RestApiId: !Ref restapi
+
+      # Comment this out to run in public mode.
+      VpcConfig:
+        SecurityGroupIds:
+          - !GetAtt PhpServerSecurityGroup.GroupId
+        SubnetIds: !Ref VpcSubnetIds
+
+  PhpServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >-
+        Security group for lambda
+      VpcId: !Ref VpcId
+  PhpServerSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: PhpServerSecurityGroup
+    Properties:
+      GroupId: !Ref PhpServerSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref PhpServerSecurityGroup
+
+  restapi:
+    Type: AWS::Serverless::Api
+    DeletionPolicy: "Retain"
+    Properties:
+      StageName: !Ref StageName
+      EndpointConfiguration: REGIONAL
+
+      # Accept binary uploads.
+      BinaryMediaTypes:
+        - "*~1*"
+
+  cloudfront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - Id: PhpServer
+            DomainName: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+            OriginPath: !Sub "/${StageName}"
+
+          - Id: Assets
+            DomainName: !Sub "${assetsS3}.s3-${AWS::Region}.amazonaws.com"
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${cfOriginAccessIdentity}"
+
+        Enabled: 'true'
+        IPV6Enabled: 'true'
+        HttpVersion: 'http2'
+
+        PriceClass: !Ref CloudFrontPriceClass
+
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ErrorCachingMinTTL: 0
+
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          ## The origin id defined above
+          TargetOriginId: PhpServer
+          Compress: 'true'
+          ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
+          ForwardedValues:
+            QueryString: 'true'
+            Cookies:
+              Forward: whitelist
+              WhitelistedNames:
+                - 'comment_author_*'
+                - 'wordpress_*'
+                - 'wp-settings-*'
+
+          MinTTL: 0
+          DefaultTTL: 0
+          MaxTTL: 31536000
+
+          ViewerProtocolPolicy: redirect-to-https
+
+        CacheBehaviors:
+          - PathPattern: "*.jpg"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "*.png"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "*.jpeg"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "*.gif"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "*.css"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "*.js"
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            DefaultTTL: 300
+            ForwardedValues:
+              QueryString: 'true'
+              Cookies:
+                Forward: 'none'
+            TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "/wp-admin/*"
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            ## The origin id defined above
+            TargetOriginId: PhpServer
+            Compress: 'true'
+            ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
+            ForwardedValues:
+              QueryString: 'true'
+              Headers:
+                - "User-Agent"
+              Cookies:
+                Forward: whitelist
+                WhitelistedNames:
+                  - 'comment_author_*'
+                  - 'wordpress_*'
+                  - 'wp-settings-*'
+
+            MinTTL: 0
+            DefaultTTL: 0
+            MaxTTL: 31536000
+
+            ViewerProtocolPolicy: redirect-to-https
+
+  assetsS3:
+    Type: AWS::S3::Bucket
+
+  assetsS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref assetsS3
+      PolicyDocument:
+        Statement:
+          - Sid: CloudFrontOrigin
+            Effect: Allow
+            Principal:
+              CanonicalUser: !Sub "${cfOriginAccessIdentity.S3CanonicalUserId}"
+            Action:
+              - s3:GetObject
+            Resource: !Sub "${assetsS3.Arn}/*"
+
+  cfOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: The Origin Access Identity to allow CloudFront to serve static files from the assets bucket (WordPress on Lambda)
+
+  DBEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId: !GetAtt PhpServerSecurityGroup.GroupId
+      VpcId: !Ref VpcId
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      Engine: aurora
+      EngineMode: serverless
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 16
+        MinCapacity: 1
+        SecondsUntilAutoPause: 300
+      VpcSecurityGroupIds:
+        - !GetAtt DBEC2SecurityGroup.GroupId
+
+Outputs:
+  RestApiDomainName:
+    Value: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
+
+  CloudFrontDistributionId:
+    Value: !Ref cloudfront
+
+  CloudFrontDistributionDomainName:
+    Value: !GetAtt cloudfront.DomainName
+
+  AssetsBucketName:
+    Value: !Ref assetsS3
