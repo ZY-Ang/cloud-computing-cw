@@ -17,16 +17,35 @@ executors:
 
 orbs:
   aws-cli: circleci/aws-cli@0.1.22
+  aws-serverless: circleci/aws-serverless@1.0.2
 
 commands:
+  configure_aws_env:
+    description: "Sets up AWS environment variables"
+    steps:
+      - run:
+          name: Setup user-defined aws environment variables
+          command: |
+            echo "export AWS_REGION=ap-southeast-1" >> $BASH_ENV
+            echo "export AWS_BUILD_PROFILE=highsugar" >> $BASH_ENV
   configure_aws:
     description: "Sets up AWS profiles, CLI and configuration"
     steps:
+      - configure_aws_env
       - aws-cli/setup:
           aws-access-key-id: AWS_ACCESS_KEY_ID
           aws-secret-access-key: AWS_SECRET_ACCESS_KEY
           aws-region: AWS_REGION
-          profile-name: highsugar
+          profile-name: $AWS_BUILD_PROFILE
+  configure_aws_sam:
+    description: "Installs the AWS SAM CLI"
+    steps:
+      - configure_aws_env
+      - aws-serverless/install:
+          aws-access-key-id: AWS_ACCESS_KEY_ID
+          aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+          aws-region: AWS_REGION
+          profile-name: $AWS_BUILD_PROFILE
   install_root_deps:
     description: "Installs root npm dependencies. Requires checkout of repo into ~/repo first."
     steps:
@@ -43,6 +62,14 @@ commands:
           paths:
             - ~/repo/node_modules
           key: v1-{{ arch }}-{{ .Branch }}-{{ checksum "package-lock.json" }}-{{ .Revision }}
+  download_wordpress:
+    description: "Downloads wordpress and extracts files to subdirectory"
+    steps:
+      - run:
+          working_directory: ~/tmp
+          name: Download wordpress latest
+          command: wget -c https://wordpress.org/latest.tar.gz -O - | tar -xz
+      - run: cp -r ~/tmp/wordpress/* ~/repo/awswordpress/lambda/src/php
 
 jobs:
   deploy_ibm_cf:
@@ -80,7 +107,7 @@ jobs:
             --stack-name alex-wp-single
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBRootPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair SSHLocation=0.0.0.0/0
-            --profile highsugar
+            --profile $AWS_BUILD_PROFILE
             --region $AWS_REGION
             --no-fail-on-empty-changeset
   deploy_wp_multiaz:
@@ -104,7 +131,7 @@ jobs:
             --stack-name alex-wp-multiaz
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerCapacity=2 WPSiteTitle="CS5224 Hello (Multi-AZ)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
-            --profile highsugar
+            --profile $AWS_BUILD_PROFILE
             --region $AWS_REGION
             --no-fail-on-empty-changeset
   deploy_wp_multiaz_autoscaling:
@@ -128,7 +155,7 @@ jobs:
             --stack-name alex-wp-multiaz-autoscaling
             --capabilities CAPABILITY_IAM
             --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER InstanceType=t2.small KeyName=nusinstanceskeypair MultiAZDatabase=true SSHLocation=0.0.0.0/0 Subnets=$DEFAULT_SUBNET_IDS VpcId=$DEFAULT_VPC_ID WebServerMinCapacity=2 WebServerMaxCapacity=100 WPSiteTitle="CS5224 Hello (Multi-AZ Autoscaling)" WPAdminUsername=$WP_USER WPAdminPassword=$WP_PASS WPAdminEmail=$WP_EMAIL
-            --profile highsugar
+            --profile $AWS_BUILD_PROFILE
             --region $AWS_REGION
             --no-fail-on-empty-changeset
   sync_up_emr_files:
@@ -165,8 +192,102 @@ jobs:
           name: Upload directory to S3
           working_directory: ~/repo/awsemr/s3
           command: |
-            aws s3 rm s3://alex-emr --recursive --profile highsugar
-            aws s3 sync . s3://alex-emr --profile highsugar
+            aws s3 rm s3://alex-emr --recursive --profile $AWS_BUILD_PROFILE
+            aws s3 sync . s3://alex-emr --profile $AWS_BUILD_PROFILE
+  deploy_wp_lambda:
+    <<: *config_project_defaults
+    executor: node_default
+    steps:
+      - checkout
+      - download_wordpress
+      - configure_aws_sam
+      - install_root_deps
+      - run:
+          name: Setup dependent environment variables from default VPC
+          command: |
+            echo "export DEFAULT_VPC_ID=$(node ~/repo/vpc.js vpc)" >> $BASH_ENV
+            echo "export DEFAULT_SUBNET_IDS=$(node ~/repo/vpc.js subnet)" >> $BASH_ENV
+            echo "export STACK_NAME=alex-wp-lambda" >> $BASH_ENV
+            echo "export DEPLOYMENT_BUCKET=alex-wp-lambda-deployment-bucket" >> $BASH_ENV
+      - run: node samBucket.js $DEPLOYMENT_BUCKET
+      - run:
+          name: Setup dependent environment variables from previously deployed stack or null
+          command: |
+            echo "export CLOUDFRONT_DOMAIN=$(node ~/repo/env.js $STACK_NAME CloudFrontDistributionDomainName)" >> $BASH_ENV
+      - run:
+          name: Fill in wp-config.php values
+          working_directory: ~/repo/awswordpress/lambda/src/php
+          command: |
+            sed -i "s/'dbase_username_here'/'$DB_USER'/g" wp-config.php
+            sed -i "s/'dbase_password_here'/'$DB_PASS'/g" wp-config.php
+            if ! [ -z $CLOUDFRONT_DOMAIN ]; then sed -i "s/cloudfront_domain_here/$CLOUDFRONT_DOMAIN/g" wp-config.php; fi
+            cat wp-config.php
+      - run:
+          name: sam package
+          working_directory: ~/repo/awswordpress/lambda
+          command: >-
+            sam package
+            --template-file template.yaml
+            --output-template-file serverless-output.yaml
+            --s3-bucket $DEPLOYMENT_BUCKET
+            --profile $AWS_BUILD_PROFILE
+            --region $AWS_REGION
+      - run:
+          name: sam deploy
+          working_directory: ~/repo/awswordpress/lambda
+          command: >-
+            sam deploy
+            --template-file serverless-output.yaml
+            --s3-bucket $DEPLOYMENT_BUCKET
+            --stack-name $STACK_NAME
+            --capabilities CAPABILITY_IAM
+            --parameter-overrides DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER VpcId=$DEFAULT_VPC_ID VpcSubnetIds=$DEFAULT_SUBNET_IDS
+            --profile $AWS_BUILD_PROFILE
+            --region $AWS_REGION
+            --no-fail-on-empty-changeset
+      - run:
+          name: Setup dependent environment variables from deployed stack
+          command: |
+            echo "export ASSETS_BUCKET_NAME=$(node ~/repo/env.js $STACK_NAME AssetsBucketName)" >> $BASH_ENV
+            if [ -z $CLOUDFRONT_DOMAIN ];then echo "export NEW_CF_DOMAIN=$(node ~/repo/env.js $STACK_NAME CloudFrontDistributionDomainName)" >> $BASH_ENV;fi
+      - run:
+          name: Fill in wp-config.php updated domain name (if necessary)
+          working_directory: ~/repo/awswordpress/lambda/src/php
+          command: >-
+            if [ -z $CLOUDFRONT_DOMAIN ];
+            then sed -i "s/cloudfront_domain_here/$NEW_CF_DOMAIN/g" wp-config.php;
+            fi
+      - run:
+          name: sam repackage with updated wp-config.php (if necessary)
+          working_directory: ~/repo/awswordpress/lambda
+          command: >-
+            if [ -z $CLOUDFRONT_DOMAIN ];
+            then sam package
+            --template-file template.yaml
+            --output-template-file serverless-output.yaml
+            --s3-bucket $DEPLOYMENT_BUCKET
+            --profile $AWS_BUILD_PROFILE
+            --region $AWS_REGION;
+            fi
+      - run:
+          name: sam redeploy with updated wp-config.php (if necessary)
+          working_directory: ~/repo/awswordpress/lambda
+          command: >-
+            if [ -z $CLOUDFRONT_DOMAIN ];
+            then sam deploy
+            --template-file serverless-output.yaml
+            --s3-bucket $DEPLOYMENT_BUCKET
+            --stack-name $STACK_NAME
+            --capabilities CAPABILITY_IAM
+            --parameter-overrides DBClass=db.t2.small DBName=wordpressdb DBPassword=$DB_PASS DBUser=$DB_USER VpcId=$DEFAULT_VPC_ID VpcSubnetIds=$DEFAULT_SUBNET_IDS
+            --profile $AWS_BUILD_PROFILE
+            --region $AWS_REGION
+            --no-fail-on-empty-changeset;
+            fi
+      - run:
+          working_directory: ~/repo/awswordpress/lambda/src/php
+          command: |
+            aws s3 sync . s3://$ASSETS_BUCKET_NAME --profile $AWS_BUILD_PROFILE --exclude "*.php" --exclude "*.ini"
 
 workflows:
   version: 2
@@ -181,19 +302,28 @@ workflows:
           filters:
             branches:
               only:
+                - single
                 - master
       - deploy_wp_multiaz:
           filters:
             branches:
               only:
                 - master
+                - maz
       - deploy_wp_multiaz_autoscaling:
           filters:
             branches:
               only:
                 - master
+                - as
       - sync_up_emr_files:
           filters:
             branches:
               only:
                 - emr
+      - deploy_wp_lambda:
+          filters:
+            branches:
+              only:
+                - master
+                - lambda
