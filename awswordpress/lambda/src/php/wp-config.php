@@ -92,6 +92,8 @@ $table_prefix = 'wp_';
  */
 define( 'WP_DEBUG', false );
 
+define( 'UPLOADS', '../../tmp' );
+
 /* That's all, stop editing! Happy publishing. */
 
 /** Absolute path to the WordPress directory. */
