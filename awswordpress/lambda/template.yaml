@@ -137,6 +137,10 @@ Resources:
         CustomErrorResponses:
           - ErrorCode: 404
             ErrorCachingMinTTL: 0
+          - ErrorCode: 504
+            ErrorCachingMinTTL: 0
+            ResponseCode: 200
+            ResponsePagePath: /
 
         DefaultCacheBehavior:
           AllowedMethods:
